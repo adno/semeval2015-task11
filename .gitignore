@@ -1,0 +1,17 @@
+.venv/
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.env
+
+# Author-supplied test labels; obtain them from the documented source.
+/TestGoldIdwithCategory.tsv
+
+# Downloaded annotations, syndication/X API caches, hydrated text, and reports.
+/data/
