@@ -19,8 +19,7 @@ source .venv/bin/activate
 python -m pip install -e .
 ```
 
-Place the ResearchGate `TestGoldIdwithCategory.tsv` file in the project root,
-then run the recommended free syndication workflow:
+Place the `TestGoldIdwithCategory.tsv` file from [ResearchGate][test-data] (Linked data > Download) in the project root, then run the recommended syndication workflow (does not require paid API):
 
 ```console
 semeval-task11 all \
@@ -28,7 +27,6 @@ semeval-task11 all \
   --backend syndication
 ```
 
-If ResearchGate permits automatic download, `--test-file` can be omitted.
 When the command finishes, the primary result is:
 
 ```text
@@ -38,7 +36,7 @@ data/processed/hydrated.tsv
 This TSV contains every annotation plus the recovered text, the ID used for
 hydration, the backend, and the availability status. A summary is written to
 `data/processed/reconstruction_report.json`. Both files are local artifacts
-ignored by Git.
+ignored by Git. You can check the reconstruction report against the [Expected inputs and outputs](#expected-inputs-and-outputs) below.
 
 ## Requirements
 
