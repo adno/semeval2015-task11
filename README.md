@@ -2,44 +2,71 @@
 
 This project reconstructs the released annotations for **SemEval-2015 Task
 11: Sentiment Analysis of Figurative Language in Twitter** and attempts to
-rehydrate the corresponding post text. It never treats an unavailable post as
-a failed dataset row: every annotation is retained with an explicit hydration
-status.
+rehydrate the corresponding tweet text. If a post is unavailable, its
+annotation is retained with an explicit hydration status rather than dropped.
 
 The annotation sources are the organizers' [Data and Tools page][official]
 and the authors' [test-set supplement on ResearchGate][test-data]. The task
 itself is described in the [SemEval paper][paper].
 
-## Requirements and installation
+## Quick start
 
-- Python 3.10 or newer
-- Network access to the source sites and the selected hydration service
-- An X API bearer token only when using the `x` backend
-
-Create an isolated environment and install the command:
+Install the command in a Python 3.10+ environment:
 
 ```console
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-For development and tests, install `python -m pip install -e '.[dev]'`.
-
-## Reconstruct the data
-
-**Recommended:** use the syndication backend first. It is free to call,
-requires no developer account or credentials, and recovered every exact train
-and test ID in our October 2026 reconstruction. It is therefore both the
-default and the best starting point:
+Place the ResearchGate `TestGoldIdwithCategory.tsv` file in the project root,
+then run the recommended free syndication workflow:
 
 ```console
-semeval-task11 all --backend syndication
+semeval-task11 all \
+  --test-file TestGoldIdwithCategory.tsv \
+  --backend syndication
 ```
 
-This performs four operations: source download, normalization, validation,
-and hydration. The commands can also be run separately:
+If ResearchGate permits automatic download, `--test-file` can be omitted.
+When the command finishes, the primary result is:
+
+```text
+data/processed/hydrated.tsv
+```
+
+This TSV contains every annotation plus the recovered text, the ID used for
+hydration, the backend, and the availability status. A summary is written to
+`data/processed/reconstruction_report.json`. Both files are local artifacts
+ignored by Git.
+
+## Requirements
+
+- Python 3.10 or newer
+- Network access to the source sites and the selected hydration service
+- An X API bearer token (only when using the `x` backend)
+
+For development and tests, install `python -m pip install -e '.[dev]'`.
+
+## Workflow details
+
+The `all` command performs four operations: source download, normalization,
+validation, and hydration. Syndication is the recommended default because it
+is free to call and requires no developer account or credentials. In our
+October 2026 reconstruction, it recovered every organizer-provided training
+replacement ID and every exact test ID.
+
+Here, **normalization** is project-specific terminology for converting the
+released training TSV files, trial spreadsheet, test TSV, and replacement-ID
+mapping into one consistent tabular schema. It preserves the published gold
+scores and IDs while adding explicit split, category, original-ID, and
+replacement-ID columns. It does **not** normalize or preprocess tweet text,
+change sentiment labels, tokenize content, or remove records. The original
+task paper refers to these data as the training, trial, and test datasets and
+their gold-standard annotations; it does not call this conversion
+"normalization."
+
+The commands can also be run separately:
 
 ```console
 semeval-task11 download
@@ -59,8 +86,8 @@ semeval-task11 all \
   --backend syndication
 ```
 
-To reconstruct only the official training and trial releases while obtaining
-the test file, use:
+To reconstruct the official training and trial releases while obtaining the
+test file separately, use:
 
 ```console
 semeval-task11 all --skip-test --backend syndication
@@ -68,26 +95,25 @@ semeval-task11 all --skip-test --backend syndication
 
 ### Hydration backend choices
 
-`--backend` is an ordered, explicit selection. Supported values are:
+`--backend` accepts one backend or an explicit fallback order:
 
-- `syndication` (**recommended and default**): uses the public endpoint at
+- `syndication` (**recommended and default**) uses the public endpoint at
   `cdn.syndication.twimg.com`. It is free to call, needs no credentials, and
-  makes one request per ID. This endpoint is undocumented and may change or
-  disappear.
-- `x`: uses the official X API v2 batch lookup. X API access uses a
-  **pay-per-access/pay-per-use model**, with post reads charged per resource
-  fetched. Pricing can change; consult the [official X API pricing page][x-pricing]
-  before running a large reconstruction. Export the credential only in the
-  current environment before running it:
+  makes one request per ID. Because the endpoint is undocumented, it may
+  change or disappear.
+- `x` uses the official X API v2 batch lookup. X API access is paid and billed
+  per use, with post reads charged per resource fetched. Pricing can change,
+  so consult the [official X API pricing page][x-pricing] before a large
+  reconstruction. Export the bearer token only in the current environment:
 
   ```console
   export X_BEARER_TOKEN='your-token'
   semeval-task11 rehydrate --backend x
   ```
 
-- `syndication,x` or `x,syndication`: uses the second backend only for IDs not
-  recovered by the first. Selecting a sequence containing `x` can incur X API
-  charges for the IDs sent to that backend.
+- `syndication,x` or `x,syndication` uses the second backend only for IDs not
+  recovered by the first. Any sequence containing `x` can incur X API charges
+  for the IDs sent to that backend.
 
 There is **no automatic X fallback** when `--backend syndication` is selected.
 The order recorded in the reconstruction report is therefore reproducible.
@@ -103,7 +129,7 @@ again. Use `--refresh-cache` to retry every lookup.
 The original training release contains 8,000 IDs. In October 2014 the
 organizers published a mapping from each original ID to a copy posted by a
 dedicated account because roughly 15% of the originals had already become
-unavailable. The normalized dataset preserves both identifiers:
+unavailable. The unified project dataset preserves both identifiers:
 
 - `original_tweet_id` is the ID in the annotation release;
 - `replacement_tweet_id` is the organizer-provided copy ID;
@@ -118,16 +144,16 @@ mapping is published for them.
 
 ## Expected inputs and outputs
 
-The releases contain the following expected numbers of unique annotations:
+The source releases should yield the following row counts:
 
 | Split | Rows | Source |
 |---|---:|---|
-| train | 8,000 | Official integer TSV, real-valued TSV, and ID mapping |
-| trial | 1,025 | Official legacy Excel workbook |
-| test | 4,000 | ResearchGate author supplement |
+| Train | 8,000 | Official integer TSV, real-valued TSV, and ID mapping |
+| Trial | 1,025 | Official legacy Excel workbook |
+| Test | 4,000 | ResearchGate author supplement |
 
-The validator checks these counts, ID uniqueness, score ranges, agreement
-between the three training sources, and replacement-ID uniqueness.
+The validator checks these counts, score ranges, agreement between the three
+training sources, and ID uniqueness wherever exact IDs are available.
 
 The ResearchGate supplement contains 21 IDs stored in lossy scientific
 notation. Their exact integer IDs cannot be recovered from the file. These
@@ -142,9 +168,9 @@ The completed syndication run retained all 13,025 annotations and recovered
 
 | Split | Total | Available | Deleted | Missing | Malformed | Recovery |
 |---|---:|---:|---:|---:|---:|---:|
-| train | 8,000 | 8,000 | 0 | 0 | 0 | 100% |
-| trial | 1,025 | 439 | 412 | 174 | 0 | 42.83% |
-| test | 4,000 | 3,979 | 0 | 0 | 21 | 99.48% |
+| Train | 8,000 | 8,000 | 0 | 0 | 0 | 100% |
+| Trial | 1,025 | 439 | 412 | 174 | 0 | 42.83% |
+| Test | 4,000 | 3,979 | 0 | 0 | 21 | 99.48% |
 | **Overall** | **13,025** | **12,418** | **412** | **174** | **21** | **95.34%** |
 
 All organizer-provided training replacement IDs and all 3,979 exact test IDs
@@ -152,18 +178,18 @@ were recovered. The test results by figurative-language category were:
 
 | Test category | Total | Available | Malformed | Recovery |
 |---|---:|---:|---:|---:|
-| sarcasm | 1,200 | 1,192 | 8 | 99.33% |
-| other | 1,200 | 1,198 | 2 | 99.83% |
-| irony | 800 | 794 | 6 | 99.25% |
-| metaphor | 800 | 795 | 5 | 99.38% |
+| Sarcasm | 1,200 | 1,192 | 8 | 99.33% |
+| Other | 1,200 | 1,198 | 2 | 99.83% |
+| Irony | 800 | 794 | 6 | 99.25% |
+| Metaphor | 800 | 795 | 5 | 99.38% |
 
 Among the successfully rehydrated records, sentiment counts were:
 
 | Split | Negative | Neutral | Positive | Available total |
 |---|---:|---:|---:|---:|
-| train | 7,344 | 12 | 644 | 8,000 |
-| trial | 360 | 3 | 76 | 439 |
-| test | 3,044 | 297 | 638 | 3,979 |
+| Train | 7,344 | 12 | 644 | 8,000 |
+| Trial | 360 | 3 | 76 | 439 |
+| Test | 3,044 | 297 | 638 | 3,979 |
 | **Overall** | **10,748** | **312** | **1,358** | **12,418** |
 
 Availability is time-dependent, so future runs may produce different totals.
@@ -175,8 +201,10 @@ Generated files are deliberately ignored by Git:
 ```text
 data/
   raw/                         downloaded source files and SHA-256 manifest
-  cache/{syndication,x}/       resumable per-ID lookup results
-  processed/annotations.tsv   normalized annotations
+  cache/
+    syndication/               resumable syndication results by ID
+    x/                         resumable X API results by ID
+  processed/annotations.tsv   unified annotations
   processed/hydrated.tsv      annotations plus recovered text and status
   processed/reconstruction_report.json
 ```
@@ -197,12 +225,13 @@ data/
 `hydration_status`. TSV fields are quoted when necessary, so tabs and newlines
 inside post text remain valid data. Status values are:
 
-- `available`: text was recovered;
-- `deleted`, `protected`, or `withheld`: the service gave that reason;
-- `missing`: the service did not return the requested ID;
-- `malformed`: an undocumented or invalid response could not be interpreted;
-- `auth_error`: credentials or authorization were rejected;
-- `transient_error`: network, throttling, or server retries were exhausted.
+- `available`: text was recovered.
+- `deleted`, `protected`, or `withheld`: the service gave that reason.
+- `missing`: the service did not return the requested ID.
+- `malformed`: a source ID is not exact or a response cannot be interpreted.
+- `auth_error`: credentials or authorization were rejected.
+- `transient_error`: a network, rate-limit, or server error exhausted the
+  configured retries.
 
 The JSON report summarizes source counts, selected backend order, status totals,
 recovery via replacement versus original IDs, and every unresolved annotation
